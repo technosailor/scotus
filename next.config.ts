@@ -1,7 +1,10 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  target: 'server',
+  generateBuildId: () => null,
+  port: process.env.PORT || 3000,
+  disableServeStaticFilesDuringDevelopment: false,
 };
 
 export default nextConfig;
