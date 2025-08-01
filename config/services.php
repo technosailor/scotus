@@ -43,9 +43,4 @@ return [
         'max_tokens' => env('OLLAMA_MAX_TOKENS', 1000),
     ],
 
-    'launchdarkly' => [
-        'sdk_key' => env('LAUNCHDARKLY_SDK_KEY'),
-        'client_side_id' => env('LAUNCHDARKLY_CLIENT_SIDE_ID'),
-    ],
-
 ];

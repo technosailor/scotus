@@ -35,9 +35,6 @@ This application is configured for **Railway** deployment and ready to deploy fo
    # Database (Railway provides PostgreSQL for free)
    DB_CONNECTION=pgsql
    
-   # LaunchDarkly (get from LaunchDarkly dashboard)
-   LAUNCHDARKLY_SDK_KEY=your-sdk-key-here
-   LAUNCHDARKLY_CLIENT_SIDE_ID=your-client-id-here
    
    # OpenAI (optional, for AI analysis)
    OPENAI_API_KEY=your-openai-key
@@ -60,7 +57,6 @@ This application is configured for **Railway** deployment and ready to deploy fo
 - ✅ `railway.json` - Railway V2 configuration
 - ✅ `start.sh` - Production startup script
 - ✅ `Procfile` - Web and worker processes  
-- ✅ LaunchDarkly integration
 - ✅ SQLite database (works out of the box)
 - ✅ Filament admin panel
 - ✅ All dependencies in `composer.json`
@@ -87,7 +83,7 @@ This application is configured for **Railway** deployment and ready to deploy fo
    # Via Railway CLI or dashboard console
    php artisan make:filament-user
    ```
-3. **Test LaunchDarkly integration**
+3. **Test application features**
 4. **Import historical data** (if needed)
 
 ## 🚨 Important Notes
@@ -95,7 +91,6 @@ This application is configured for **Railway** deployment and ready to deploy fo
 - Railway free tier includes 500 hours/month
 - SQLite database works for development/small projects
 - For production, consider PostgreSQL (free on Railway)
-- Keep LaunchDarkly SDK key secret
 - Monitor resource usage in Railway dashboard
 
 Your application is deployment-ready! 🚀
