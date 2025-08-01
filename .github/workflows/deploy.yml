@@ -1,0 +1,155 @@
+name: Deploy to technosailor.com
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_mysql, dom, filter, gd, iconv, json, mbstring, redis
+        tools: composer:v2
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Copy .env
+      run: php -r "file_exists('.env') || copy('.env.example', '.env');"
+      
+    - name: Install PHP Dependencies
+      run: composer install --no-dev --optimize-autoloader --no-interaction
+      
+    - name: Install Node Dependencies
+      run: npm ci
+      
+    - name: Build assets
+      run: npm run build
+      
+    - name: Generate application key
+      run: php artisan key:generate --ansi
+      
+    - name: Directory Permissions
+      run: chmod -R 775 storage bootstrap/cache
+      
+    - name: Run database migrations
+      run: php artisan migrate --force
+      
+    - name: Clear caches
+      run: |
+        php artisan cache:clear
+        php artisan config:clear
+        php artisan route:clear
+        php artisan view:clear
+        
+    - name: Optimize Laravel
+      run: |
+        php artisan config:cache
+        php artisan route:cache
+        php artisan view:cache
+        
+    # Option 1: Deploy via SSH/SCP (if you have server access)
+    - name: Deploy via SSH
+      if: ${{ env.DEPLOY_METHOD == 'ssh' }}
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        port: ${{ secrets.SERVER_PORT || 22 }}
+        script: |
+          cd ${{ secrets.DEPLOY_PATH }}
+          git pull origin main
+          composer install --no-dev --optimize-autoloader
+          npm ci && npm run build
+          php artisan migrate --force
+          php artisan cache:clear
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
+          
+    # Option 2: Deploy via FTP/SFTP
+    - name: Deploy via SFTP
+      if: ${{ env.DEPLOY_METHOD == 'sftp' }}
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        protocol: sftp
+        port: ${{ secrets.FTP_PORT || 22 }}
+        local-dir: ./
+        server-dir: ${{ secrets.FTP_SERVER_DIR }}
+        exclude: |
+          **/.git*
+          **/.git*/**
+          **/node_modules/**
+          **/tests/**
+          **/.env
+          **/storage/logs/**
+          
+    # Option 3: Create deployment artifact
+    - name: Create deployment package
+      if: ${{ env.DEPLOY_METHOD == 'artifact' }}
+      run: |
+        tar -czf supreme-court-app.tar.gz \
+          --exclude='.git' \
+          --exclude='node_modules' \
+          --exclude='tests' \
+          --exclude='.env' \
+          --exclude='storage/logs/*' \
+          .
+          
+    - name: Upload deployment artifact
+      if: ${{ env.DEPLOY_METHOD == 'artifact' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: supreme-court-app
+        path: supreme-court-app.tar.gz
+        retention-days: 30
+
+  # Subdomain deployment job (for subdomain like supremecourt.technosailor.com)
+  deploy-subdomain:
+    runs-on: ubuntu-latest
+    if: ${{ vars.DEPLOY_TO_SUBDOMAIN == 'true' }}
+    needs: deploy
+    
+    steps:
+    - name: Deploy to subdomain
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        port: ${{ secrets.SERVER_PORT || 22 }}
+        script: |
+          # Create subdomain directory if it doesn't exist
+          mkdir -p ${{ secrets.SUBDOMAIN_PATH }}
+          
+          # Copy application to subdomain
+          rsync -av --exclude='.git' ${{ secrets.DEPLOY_PATH }}/ ${{ secrets.SUBDOMAIN_PATH }}/
+          
+          # Update subdomain configuration
+          cd ${{ secrets.SUBDOMAIN_PATH }}
+          php artisan config:cache
+          php artisan route:cache
+          
+          # Update web server configuration if needed
+          # This depends on your server setup (nginx/apache)
+
+env:
+  DEPLOY_METHOD: ssh # Options: ssh, sftp, artifact

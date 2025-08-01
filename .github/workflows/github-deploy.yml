@@ -1,0 +1,285 @@
+name: Deploy to GitHub
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.4'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_sqlite, dom, filter, gd, iconv, json, mbstring
+        tools: composer:v2
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install PHP Dependencies
+      run: composer install --no-dev --optimize-autoloader --no-interaction
+      
+    - name: Install Node Dependencies
+      run: npm ci
+      
+    - name: Create production environment file
+      run: |
+        cat > .env << EOF
+        APP_NAME="Supreme Court Data Visualization"
+        APP_ENV=production
+        APP_KEY=${{ secrets.APP_KEY || 'base64:' }}$(openssl rand -base64 32)
+        APP_DEBUG=false
+        APP_URL=https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        
+        LOG_CHANNEL=single
+        LOG_DEPRECATIONS_CHANNEL=null
+        LOG_LEVEL=error
+        
+        DB_CONNECTION=sqlite
+        DB_DATABASE=database/database.sqlite
+        
+        BROADCAST_DRIVER=log
+        CACHE_DRIVER=file
+        FILESYSTEM_DISK=local
+        QUEUE_CONNECTION=sync
+        SESSION_DRIVER=file
+        SESSION_LIFETIME=120
+        
+        REDIS_HOST=127.0.0.1
+        REDIS_PASSWORD=null
+        REDIS_PORT=6379
+        
+        MAIL_MAILER=smtp
+        MAIL_HOST=mailpit
+        MAIL_PORT=1025
+        MAIL_USERNAME=null
+        MAIL_PASSWORD=null
+        MAIL_ENCRYPTION=null
+        MAIL_FROM_ADDRESS="hello@example.com"
+        MAIL_FROM_NAME="\${APP_NAME}"
+        
+        # GitHub deployment specific
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        OLLAMA_BASE_URL=http://localhost:11434
+        EOF
+        
+    - name: Generate application key
+      run: php artisan key:generate --ansi
+      
+    - name: Create SQLite database
+      run: |
+        mkdir -p database
+        touch database/database.sqlite
+        
+    - name: Run database migrations
+      run: php artisan migrate --force --seed
+      
+    - name: Build frontend assets
+      run: npm run build
+      
+    - name: Optimize Laravel for production
+      run: |
+        php artisan config:cache
+        php artisan route:cache
+        php artisan view:cache
+        
+    - name: Create static export (for GitHub Pages)
+      run: |
+        # Create a static version of key pages
+        mkdir -p dist
+        
+        # Start Laravel server in background
+        php artisan serve --host=127.0.0.1 --port=8000 &
+        sleep 10
+        
+        # Export main pages as static HTML
+        curl -o dist/index.html http://127.0.0.1:8000/ || echo "Dashboard export failed"
+        
+        # Copy public assets
+        cp -r public/* dist/ 2>/dev/null || true
+        
+        # Copy built assets
+        mkdir -p dist/build
+        cp -r public/build/* dist/build/ 2>/dev/null || true
+        
+        # Create a simple index redirect if main export failed
+        if [ ! -f dist/index.html ]; then
+          cat > dist/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Supreme Court Data Visualization</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="bg-gray-100">
+            <div class="container mx-auto px-4 py-8 text-center">
+                <h1 class="text-4xl font-bold mb-4">Supreme Court Data Visualization</h1>
+                <p class="text-lg mb-8">A comprehensive analysis tool for Supreme Court cases and opinions.</p>
+                <div class="bg-white p-6 rounded-lg shadow-lg max-w-2xl mx-auto">
+                    <h2 class="text-2xl font-semibold mb-4">Features</h2>
+                    <ul class="text-left space-y-2">
+                        <li>📊 Interactive data visualizations</li>
+                        <li>⚖️ Precedential case analysis</li>
+                        <li>👨‍⚖️ Justice language pattern analysis</li>
+                        <li>📈 Legal topic trend analysis</li>
+                        <li>🔥 Interactive heatmaps</li>
+                        <li>🤖 AI-powered case insights</li>
+                    </ul>
+                    <div class="mt-6">
+                        <a href="https://github.com/${{ github.repository }}" 
+                           class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors">
+                            View Source Code
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        EOF
+        fi
+        
+        # Kill background server
+        pkill -f "php artisan serve" || true
+        
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+      
+    - name: Upload to GitHub Pages
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: './dist'
+        
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+  # Create GitHub Release with application package
+  create-release:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.4'
+        tools: composer:v2
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Build production package
+      run: |
+        composer install --no-dev --optimize-autoloader
+        npm ci && npm run build
+        
+    - name: Create release package
+      run: |
+        # Create deployment package
+        tar -czf supreme-court-app-$(date +%Y%m%d-%H%M%S).tar.gz \
+          --exclude='.git*' \
+          --exclude='node_modules' \
+          --exclude='tests' \
+          --exclude='.env' \
+          --exclude='storage/logs/*' \
+          --exclude='database/database.sqlite' \
+          .
+          
+        # Create installation script
+        cat > install.sh << 'EOF'
+        #!/bin/bash
+        echo "Installing Supreme Court Data Visualization App..."
+        
+        # Check requirements
+        php -v || { echo "PHP is required"; exit 1; }
+        composer --version || { echo "Composer is required"; exit 1; }
+        
+        # Setup application
+        composer install --no-dev --optimize-autoloader
+        cp .env.example .env
+        php artisan key:generate
+        
+        # Setup database
+        touch database/database.sqlite
+        php artisan migrate --force
+        
+        # Build assets
+        if command -v npm &> /dev/null; then
+            npm ci && npm run build
+        else
+            echo "npm not found, skipping asset build"
+        fi
+        
+        # Optimize
+        php artisan config:cache
+        php artisan route:cache
+        php artisan view:cache
+        
+        echo "Installation complete!"
+        echo "Run 'php artisan serve' to start the application"
+        EOF
+        chmod +x install.sh
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ github.run_number }}
+        name: Release v${{ github.run_number }}
+        body: |
+          ## Supreme Court Data Visualization - Release v${{ github.run_number }}
+          
+          ### 🚀 What's New
+          - Interactive Supreme Court case analysis
+          - Precedential case importance tracking
+          - Justice language pattern analysis
+          - Legal topic trend visualization
+          - Interactive D3.js heatmaps
+          - AI-powered case insights
+          
+          ### 📦 Deployment Options
+          
+          **GitHub Pages Demo**: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          
+          **Local Installation**:
+          1. Download the `supreme-court-app-*.tar.gz` file
+          2. Extract: `tar -xzf supreme-court-app-*.tar.gz`
+          3. Run: `./install.sh`
+          4. Start: `php artisan serve`
+          
+          **GitHub Codespaces**: Click "Code" → "Codespaces" → "Create codespace" for instant development environment
+          
+          ### 🛠️ Requirements
+          - PHP 8.2+
+          - Composer
+          - SQLite or MySQL
+          - Node.js (for asset building)
+          
+          Built with ❤️ using Laravel, D3.js, and TailwindCSS
+        files: |
+          supreme-court-app-*.tar.gz
+          install.sh
+        draft: false
+        prerelease: false
