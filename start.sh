@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Railway startup script for Laravel
-echo "🚂 Starting Supreme Court Data Visualization on Railway..."
+echo "🚂 Starting SCOTUS on Railway..."
 
 # Wait for database to be ready
 echo "⏳ Waiting for database connection..."

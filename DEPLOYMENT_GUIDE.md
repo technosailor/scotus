@@ -27,7 +27,7 @@ This application is configured for **Railway** deployment and ready to deploy fo
 3. **Set Environment Variables**
    In Railway dashboard, go to Variables tab and add:
    ```
-   APP_NAME=Supreme Court Data Visualization
+   APP_NAME=SCOTUS
    APP_ENV=production
    APP_DEBUG=false
    APP_URL=https://your-app.railway.app

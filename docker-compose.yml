@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: supreme-court-app
+    container_name: scotus-app
     restart: unless-stopped
     working_dir: /var/www
     volumes:
@@ -12,7 +12,7 @@ services:
       - ./storage:/var/www/storage
       - ./bootstrap/cache:/var/www/bootstrap/cache
     networks:
-      - supreme-court-network
+      - scotus-network
     environment:
       - APP_ENV=local
       - APP_DEBUG=true
@@ -26,7 +26,7 @@ services:
   # Nginx Web Server
   nginx:
     image: nginx:alpine
-    container_name: supreme-court-nginx
+    container_name: scotus-nginx
     restart: unless-stopped
     ports:
       - "8080:80"
@@ -37,21 +37,21 @@ services:
     depends_on:
       - app
     networks:
-      - supreme-court-network
+      - scotus-network
 
   # Ollama for Local LLM
   ollama:
     build:
       context: ./docker/ollama
       dockerfile: Dockerfile
-    container_name: supreme-court-ollama
+    container_name: scotus-ollama
     restart: unless-stopped
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     networks:
-      - supreme-court-network
+      - scotus-network
     environment:
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_MODEL=llama3.2
@@ -65,35 +65,35 @@ services:
   # Redis for Caching
   redis:
     image: redis:7-alpine
-    container_name: supreme-court-redis
+    container_name: scotus-redis
     restart: unless-stopped
     ports:
       - "6380:6379"
     volumes:
       - redis_data:/data
     networks:
-      - supreme-court-network
+      - scotus-network
 
   # MySQL Database (backup option)
   mysql:
     image: mysql:8.0
-    container_name: supreme-court-mysql
+    container_name: scotus-mysql
     restart: unless-stopped
     ports:
       - "3306:3306"
     environment:
-      MYSQL_DATABASE: supreme_court
-      MYSQL_ROOT_PASSWORD: supreme_court_pass
-      MYSQL_PASSWORD: supreme_court_pass
-      MYSQL_USER: supreme_court_user
+      MYSQL_DATABASE: scotus
+      MYSQL_ROOT_PASSWORD: scotus_pass
+      MYSQL_PASSWORD: scotus_pass
+      MYSQL_USER: scotus_user
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
-      - supreme-court-network
+      - scotus-network
 
 # Docker Networks
 networks:
-  supreme-court-network:
+  scotus-network:
     driver: bridge
 
 # Persistent Volumes
