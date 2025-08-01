@@ -11,6 +11,7 @@
         "guzzlehttp/guzzle": "^7.9",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
+        "launchdarkly/server-sdk": "^6.6",
         "openai-php/client": "^0.14.0",
         "predis/predis": "^3.1"
     },

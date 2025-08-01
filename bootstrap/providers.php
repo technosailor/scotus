@@ -2,6 +2,7 @@
 
 return [
     App\Providers\AppServiceProvider::class,
+    App\Providers\LaunchDarklyServiceProvider::class,
     App\Providers\Filament\AdminPanelProvider::class,
     App\Providers\Filament\CasesPanelProvider::class,
     App\Providers\Filament\TermsPanelProvider::class,
