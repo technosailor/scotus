@@ -1,0 +1,17 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+numReplicas = 1
+sleepApplication = false
+restartPolicyType = "ON_FAILURE"
+
+[variables]
+APP_ENV = "production"
+APP_DEBUG = "false"
+DB_CONNECTION = "pgsql"
+CACHE_STORE = "redis"
+SESSION_DRIVER = "redis"
+QUEUE_CONNECTION = "redis"
+ENABLE_LLM_ANALYSIS = "false"
+ENABLE_PRECEDENTIAL_ANALYSIS = "true"
